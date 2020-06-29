@@ -3,125 +3,60 @@
  * @author Dylan Hackworth <dhpf@pm.me>
  */
 import { Database } from "better-sqlite3";
-import { v1 as uuid } from 'uuid';
-import { AlreadyAuthCode } from "../errors";
+import { v1 as uuid } from "uuid";
 
+function generateAuthCodeString(): string {
+  return uuid().split('-')[0];
+}
 
 export type AuthCodeProfile = {
-  discordID: string;
-  authCode: string;
-  playerUUID: string;
+  auth_code: string;
+  mc_id: string;
 }
 
 export class AuthCodes {
-  private readonly tableName = "auth_codes";
+  private readonly tablename = "pending_authorisations";
 
   constructor(private readonly db: Database) { this.init(); }
 
   /**
-   * Gets the auth code associated with a given identifier
+   * Gets the auth code associated wih a given Minecraft player id.
    */
-  public async getAuthCode(id: string): Promise<string | null> {
-    const row = this.db.prepare(
-      `SELECT auth_code FROM ${this.tableName} WHERE discord_id=? ` +
-      `OR minecraft_id=?`
-    ).get(id, id);
+  public async getMinecraftPlayer(mc_id: string): Promise<AuthCodeProfile | null> {
+    const row: AuthCodeProfile | null = this.db.prepare<[string]>(
+      `SELECT * FROM ${this.tablename} WHERE mc_id=?`,
+    ).get(mc_id);
 
-
-    if (row)
-      return row.auth_code;
-    else
-      return null;
+    return row;
   }
 
-  public getAllAuthCodes(): AuthCodeProfile[] {
-    const rows = this.db.prepare(
-      `SELECT * FROM ${this.tableName}`
-    ).all();
-    const result: AuthCodeProfile[] = [];
+  public async getAuthCode(auth_code: string): Promise<AuthCodeProfile | null> {
+    const row: AuthCodeProfile | null = this.db.prepare<[string]>(
+      `SELECT * FROM ${this.tablename} WHERE auth_code=?`,
+    ).get(auth_code);
 
-    for (const row of rows) {
-      result.push({
-        discordID: row.discord_id,
-        authCode: row.auth_code,
-        playerUUID: row.minecraft_id
-      });
-    }
-
-
-    return result;
-  }
-
-  public removeAuth(discordID: string): boolean {
-    const info = this.db.prepare(
-      `DELETE FROM ${this.tableName} WHERE discord_id=?`
-    ).run(discordID);
-
-    return (info.changes > 0);
+    return row;
   }
 
   /**
-   * Gets the auth code associated with a given
+   * Creates an auth code for a user.
    */
-  public getUUID(discordID: string): string | null {
-    const row = this.db.prepare(
-      `SELECT minecraft_id FROM ${this.tableName} WHERE discord_id=?`
-    ).get(discordID);
+  public async assertAuthCode(mc_id: string): Promise<AuthCodeProfile> {
+    const auth_code = generateAuthCodeString();
+    const row: AuthCodeProfile = this.db.prepare<[string, string, string, string]>(
+      `INSERT INTO ${this.tablename} (auth_code, mc_id) VALUES (?, ?)` +
+      " ON CONFLICT(mc_id) DO UPDATE SET auth_code=? WHERE mc_id=? RETURNING *",
+    ).get(auth_code, mc_id, auth_code, mc_id);
 
-    if (row)
-      return row.minecraft_id;
-    else
-      return null;
+    return row;
   }
 
-  /**
-   * Checks to see if a given auth code is correct, it also deletes it from
-   * the table
-   */
-  public async authorizedCode(discordID: string, authCode: string): Promise<string | null> {
-    const code = await this.getAuthCode(discordID);
-
-    if (code == authCode) {
-      const playerUUID = await this.getUUID(discordID);
-
-      this.db.prepare(
-        `DELETE FROM ${this.tableName} WHERE discord_id=?`
-      ).run(discordID);
-
-      return playerUUID;
-    } else
-      return null;
-  }
-
-  public async hasAuthCode(discordID: string): Promise<boolean> {
-    return (await this.getAuthCode(discordID)) != null;
-  }
-
-  /**
-   * Generates a new auth code for a given Discord user
-   */
-  public async newAuthCode(discordID: string, playerUUID: string): Promise<string> {
-    const authCode = uuid().split('-')[0];
-    const alreadyHasCode = await this.hasAuthCode(discordID);
-
-    if (alreadyHasCode) {
-      throw new AlreadyAuthCode();
-    }
-
-    this.db.prepare(
-      `INSERT INTO ${this.tableName} (discord_id,auth_code,minecraft_id) VALUES (?,?,?)`
-    ).run(discordID, authCode, playerUUID);
-
-    return authCode;
-  }
-
-  private init() {
-    this.db.prepare(
-      `CREATE TABLE IF NOT EXISTS ${this.tableName} (` +
-      "discord_id text UNIQUE NOT NULL," +
-      "minecraft_id text NOT NULL," +
-      "auth_code text UNIQUE NOT NULL" +
-      ")"
+  public init() {
+    this.db.prepare<[]>(
+      `CREATE TABLE IF NOT EXISTS ${this.tablename} (` + [
+        "mc_id text UNIQUE NOT NULL",
+        "auth_code text UNIQUE NOT NULL",
+      ].join(',') + ")",
     ).run();
   }
 }
