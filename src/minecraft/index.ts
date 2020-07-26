@@ -10,6 +10,10 @@
 import bent, { RequestFunction } from 'bent';
 
 
+export class PlayerDoesNotExist extends Error {
+  constructor() { super("Provided playername does not exist"); }
+}
+
 /**
  * Playername -> UUID Response
  * @link https://wiki.vg/Mojang_API#Username_-.3E_UUID_at_time
@@ -63,7 +67,10 @@ export async function getUUID(name: string): Promise<string> {
   const getJSON = bent('https://api.mojang.com', 'POST', 'json', 200) as RequestFunction<UUID[]>;
   const res = await getJSON('/profiles/minecraft', [name]);
 
-  return res[0].id;
+  if (res.length > 0)
+    return res[0].id;
+  else
+    throw new PlayerDoesNotExist();
 }
 
 /**

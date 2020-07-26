@@ -23,12 +23,11 @@ import { AuthCodes } from "./tables/authCodes";
 export class DBController {
   public static readonly rootDir = `${process.cwd()}/config`;
   public static readonly defPath = `${DBController.rootDir}/accounts.db`;
-
-  private readonly db: sql.Database;
   public readonly alts: AltsTable;
   public readonly auth: AuthCodes;
   public readonly links: LinksTable;
   public readonly bans: BanTable;
+  private readonly db: sql.Database;
 
   constructor(config: DBConfig) {
     if (!fs.existsSync(DBController.rootDir))

@@ -4,7 +4,7 @@
  */
 import { NextFunction, Request, Response } from "express";
 import { WebServer } from "../../../WebServer";
-import { ownerType, noOwner } from "../errors";
+import { noOwner, ownerType } from "../errors";
 import { altAccs } from "../responses";
 
 
@@ -20,7 +20,7 @@ export async function getReq(req: Request, res: Response) {
   const webServer: WebServer = req['webserver'];
 
   // result is an array of player names owned by the owner
-  const result = webServer.db.alts.getAlts(owner);
+  const result = await webServer.db.alts.getAlts(owner);
   const body: altAccs = { alt_accs: result };
 
   console.log(`Response for "${reqID}"\n`, body);

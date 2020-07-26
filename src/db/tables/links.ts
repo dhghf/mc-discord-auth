@@ -28,7 +28,7 @@ export class LinksTable {
    * @throws {NoMcAccError} if the provided ID isn't associated with an MC
    * account.
    */
-  public getMcID(discordID: Snowflake): string {
+  public async getMcID(discordID: Snowflake): Promise<string> {
     const row = this.db.prepare(
       `SELECT minecraft FROM ${this.tableName} WHERE discord=?`,
     ).get(discordID);
@@ -49,7 +49,7 @@ export class LinksTable {
    * @throws {NoDiscordAccError} if the provided Minecraft player ID isn't
    * associated with a Discord account.
    */
-  public getDiscordID(uuid: string): string | null {
+  public async getDiscordID(uuid: string): Promise<string | null> {
     const row = this.db.prepare(
       `SELECT discord FROM ${this.tableName} WHERE minecraft=?`
     ).get(uuid);
@@ -62,15 +62,7 @@ export class LinksTable {
       return null;
   }
 
-  // public hasMcUUID(uuid: string): boolean {
-  //   const row = this.db.prepare(
-  //     `SELECT discord FROM ${this.tableName} WHERE minecraft=?`
-  //   ).get(uuid);
-  //
-  //   return row != undefined;
-  // }
-
-  public link(discordID: string, mcID: string) {
+  public async link(discordID: string, mcID: string): Promise<void> {
     const alreadyLinked = this.db.prepare(
       `SELECT * FROM ${this.tableName} WHERE discord=? OR minecraft=?`
     ).get(discordID, mcID);
@@ -92,7 +84,7 @@ export class LinksTable {
     ).run(discordID, mcID);
   }
 
-  public checkIfLinked(discordID?: string, minecraftID?: string) {
+  public async checkIfLinked(discordID?: string, minecraftID?: string): Promise<void> {
     const alreadyLinked = this.db.prepare(
       `SELECT * FROM ${this.tableName} WHERE discord=? OR minecraft=?`
     ).get(discordID || '', minecraftID || '');
@@ -114,7 +106,7 @@ export class LinksTable {
    * @param {string} discordID
    * @returns {boolean} If it was successfully unlinked.
    */
-  public unlinkDiscordAcc(discordID: string): boolean {
+  public async unlinkDiscordAcc(discordID: string): Promise<boolean> {
     const info = this.db.prepare(
       `DELETE FROM ${this.tableName} WHERE discord=?`
     ).run(discordID);
@@ -126,7 +118,7 @@ export class LinksTable {
    * This gets every Discord user ID in the database
    * @returns {string[]} Discord user ID array
    */
-  public getAllDiscordAccs(): string[] {
+  public async getAllDiscordAccs(): Promise<string[]> {
     const rows = this.db.prepare(
       `SELECT discord FROM ${this.tableName}`
     ).all();
@@ -137,6 +129,19 @@ export class LinksTable {
     return result;
   }
 
+  /**
+   * This unassociated a Minecraft UUID with whatever it's associated with.
+   * @param {string} playerUUID Player UUID to remove from the database
+   * @returns {boolean} if it was successful or not
+   */
+  public async unlinkMcAcc(playerUUID: string): Promise<boolean> {
+    const info = this.db.prepare(
+      `DELETE FROM ${this.tableName} WHERE minecraft=?`
+    ).run(playerUUID);
+
+    return (info.changes > 0);
+  }
+
   private init() {
     this.db.prepare(
       `CREATE TABLE IF NOT EXISTS ${this.tableName} (` +
@@ -144,18 +149,5 @@ export class LinksTable {
       'discord text PRIMARY KEY NOT NULL' +
       ')'
     ).run();
-  }
-
-  /**
-   * This unassociated a Minecraft UUID with whatever it's associated with.
-   * @param {string} playerUUID Player UUID to remove from the database
-   * @returns {boolean} if it was successful or not
-   */
-  public unlinkMcAcc(playerUUID: string): boolean {
-    const info = this.db.prepare(
-      `DELETE FROM ${this.tableName} WHERE minecraft=?`
-    ).run(playerUUID);
-
-    return (info.changes > 0);
   }
 }

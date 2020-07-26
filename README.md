@@ -1,4 +1,13 @@
-# MC Discord Authenticator Server
+# Code Base Moved
+Please visit the new MCAuth, it brings better performance, and a better code
+base
+
+[Click Here](https://github.com/dhghf/mcauth)
+
+This is the version 1 MCAuth, it started off as a proof of concept, but as it
+got tested I realized it's time to adopt a different code base.
+
+# MC Discord Authenticator Server v1
 This Discord bot communicates with both Discord and a Minecraft server to
 create an authentication whether it be a user has a certain role or that
 they are even allowed on the Minecraft server.

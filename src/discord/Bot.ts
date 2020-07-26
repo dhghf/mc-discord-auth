@@ -15,6 +15,7 @@ import {
   isValid
 } from "../webserver/routes/isValidPlayer/responses";
 import * as mc from "../minecraft";
+
 const pkg = require('../../package.json');
 
 
@@ -52,12 +53,27 @@ export class Bot {
     this.guild = config.guild_id;
     this.whitelist = config.roles;
     this.db = db;
-    this.maintenance = false;
+    this.maintenance = true;
     this.prefix = config.prefix;
     this.adminRoles = config.admin_roles;
     this.token = config.token;
     this.commands = new Commands(this, db);
-    this.adminCommands = new AdminCommands(this, db);
+    this.adminCommands = new AdminCommands(this, this.client, db);
+  }
+
+  /**
+   * If they have a given role in a list
+   * @returns {boolean}
+   */
+  private static hasRole(member: GuildMember, roles: string[]): boolean {
+    for (const roleID of member.roles.cache.keys()) {
+      let isWhitelisted = roles.includes(roleID);
+
+      if (isWhitelisted) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
@@ -86,105 +102,20 @@ export class Bot {
   }
 
   /**
-   * This is our Message object listener when the bot retrieves a new
-   * message in whatever channel it's in it is emitted here.
-   * @param {Message} message The message object (see link for details)
-   * @link https://discord.js.org/#/docs/main/stable/class/Message
-   */
-  private async onMessage(message: Message) {
-    // First let's filter all the messages we don't want
-    // We don't want bots & we don't want blank messages (ie images with no
-    // caption)
-    if (message.author.bot || message.content.length == 0 || !message.member)
-      return;
-
-    // Next let's see if they're communicating with our bot
-    if (message.content.startsWith(this.prefix)) {
-      // Let's make sure they're not banned from using this bot
-      const isBanned = this.db.bans.isBanned(message.author.id);
-      if (isBanned) {
-        await message.reply("You're banned from using this bot.");
-        return;
-      }
-
-      // Make sure they have the valid roles to talk to the bot / join the
-      // MC server.
-      const isValid = this.isValidMember(message.member)
-      if (!isValid) {
-        if (this.maintenance) {
-          await message.reply("Bot is in maintenance mode.");
-        } else {
-          await message.reply(
-            "You don't have the required roles to run this bot."
-          );
-        }
-        return
-      }
-
-
-      // args = ["<bot prefix>", "<command name>" || undefined]
-      const args = message.content.split(' ');
-
-      switch (args[1]) {
-        // COMMANDS
-        case 'auth':
-          await this.commands.auth(message, args);
-          break;
-        case 'link':
-          await this.commands.link(message, args);
-          break;
-        case 'unlink':
-          // admin version
-          if (args.length > 2)
-            await this.adminCommands.unlink(message, args);
-          // regular version
-          else
-            await this.commands.unlink(message, args);
-          break;
-        case 'whoami':
-          await this.commands.whoami(message);
-          break;
-        // ADMIN COMMANDS
-        case 'admin':
-          await this.adminCommands.help(message);
-          break;
-        case 'ban':
-          await this.adminCommands.ban(message);
-          break;
-        case 'pardon':
-          await this.adminCommands.pardon(message);
-          break;
-        case 'maintenance':
-          await this.adminCommands.maintenance(message);
-          break;
-        case 'status':
-          await this.status(message);
-          break;
-        case 'whois':
-          await this.adminCommands.whois(message);
-          break;
-        case 'help':
-        default:
-          await this.commands.help(message);
-      }
-    }
-  }
-
-  /**
    * This is the status command
    */
   public async status(msg: Message) {
     if (!msg.guild)
       return;
 
-    if (!( await this.isAnAdmin(msg.member as GuildMember) ))
+    if (!(await this.isAnAdmin(msg.member as GuildMember)))
       return;
 
     const statusEmbed = new MessageEmbed();
-    const linked = this.db.links.getAllDiscordAccs().length;
-    const alts = this.db.alts.getAllAlts().length;
+    const linked = (await this.db.links.getAllDiscordAccs()).length;
+    const alts = (await this.db.alts.getAllAlts()).length;
     const authCodes = this.db.auth.getAllAuthCodes().length;
-    const banned = this.db.bans.getAll().length;
+    const banned = (await this.db.bans.getAll()).length;
     let adminRoles = '**Admin Roles**\n';
     let whitelist = '**Whitelist Roles**\n';
 
@@ -228,7 +159,7 @@ export class Bot {
    * This returns the "whois" of someone
    */
   public async whoIs(user: User, channel: TextChannel) {
-    const uuid = this.db.links.getMcID(user.id);
+    const uuid = await this.db.links.getMcID(user.id);
     const name = await mc.getName(uuid);
 
     await channel.send(
@@ -245,8 +176,11 @@ export class Bot {
    * This is the maintenance command, it toggles "maintenance mode".
    * Bot admin can only run this command.
    */
-  public maintenanceMode(): boolean {
-    return (this.maintenance = !this.maintenance);
+  public setMaintenance(toggled: boolean | null): boolean {
+    if (toggled == null)
+      return (this.maintenance = !this.maintenance);
+    else
+      return (this.maintenance = toggled);
   }
 
   /**
@@ -254,22 +188,6 @@ export class Bot {
    */
   public isMaintenanceMode(): boolean {
     return this.maintenance;
-  }
-
-  /**
-   * This gets the GuildMember object of the provided ID.
-   * @param {string} id The user's ID
-   * @returns {GuildMember | null}
-   * @throws {Error} if it failed getting the Guild that the bot should be
-   * serving.
-   */
-  private resolveMember(id: string): GuildMember | null {
-    const guild = this.client.guilds.cache.get(this.guild);
-
-    if (guild)
-      return guild.member(id);
-    else
-      throw new Error("Internal error occurred while fetching guild.");
   }
 
   /**
@@ -339,7 +257,7 @@ export class Bot {
         const isAdmin = Bot.hasRole(member, this.adminRoles);
 
         if (isAdmin)
-          return { valid: true};
+          return { valid: true };
         else
           return { valid: false, reason: 'no_role' };
       }
@@ -347,17 +265,109 @@ export class Bot {
   }
 
   /**
-   * If they have a given role in a list
-   * @returns {boolean}
+   * This is our Message object listener when the bot retrieves a new
+   * message in whatever channel it's in it is emitted here.
+   * @param {Message} message The message object (see link for details)
+   * @link https://discord.js.org/#/docs/main/stable/class/Message
    */
-  private static hasRole(member: GuildMember, roles: string[]): boolean {
-    for (const roleID of member.roles.cache.keys()) {
-      let isWhitelisted = roles.includes(roleID);
+  private async onMessage(message: Message) {
+    // First let's filter all the messages we don't want
+    // We don't want bots & we don't want blank messages (ie images with no
+    // caption)
+    if (message.author.bot || message.content.length == 0 || !message.member)
+      return;
 
-      if (isWhitelisted) {
-        return true;
+    // Next let's see if they're communicating with our bot
+    if (message.content.startsWith(this.prefix)) {
+      // Let's make sure they're not banned from using this bot
+      const isBanned = this.db.bans.isBanned(message.author.id);
+      if (isBanned) {
+        await message.reply("You're banned from using this bot.");
+        return;
+      }
+
+      // Make sure they have the valid roles to talk to the bot / join the
+      // MC server.
+      const isValid = this.isValidMember(message.member)
+      if (!isValid) {
+        if (this.maintenance) {
+          await message.reply("Bot is in maintenance mode.");
+        } else {
+          await message.reply(
+            "You don't have the required roles to run this bot."
+          );
+        }
+        return
+      }
+
+
+      // args = ["<bot prefix>", "<command name>" || undefined]
+      const args = message.content.split(' ');
+
+      switch (args[1]) {
+        // COMMANDS
+        case 'lock':
+          await this.adminCommands.maintenance(message, true);
+          break;
+        case 'unlock':
+          await this.adminCommands.maintenance(message, false);
+          break;
+        case 'auth':
+          await this.commands.auth(message, args);
+          break;
+        case 'unlink':
+          // admin version
+          if (args.length > 2)
+            await this.adminCommands.unlink(message, args);
+          // regular version
+          else
+            await this.commands.unlink(message, args);
+          break;
+        case 'whoami':
+          await this.commands.whoami(message);
+          break;
+        // ADMIN COMMANDS
+        case 'admin':
+          await this.adminCommands.help(message);
+          break;
+        case 'ban':
+          await this.adminCommands.ban(message);
+          break;
+        case 'pardon':
+          await this.adminCommands.pardon(message);
+          break;
+        case 'maintenance':
+          await this.adminCommands.maintenance(message, null);
+          break;
+        case 'status':
+          await this.status(message);
+          break;
+        case 'whois':
+          await this.adminCommands.whois(message, args);
+          break;
+        case 'commands':
+          await this.commands.commands(message);
+          break;
+        case 'help':
+        default:
+          await this.commands.help(message);
       }
     }
-    return false;
+  }
+
+  /**
+   * This gets the GuildMember object of the provided ID.
+   * @param {string} id The user's ID
+   * @returns {GuildMember | null}
+   * @throws {Error} if it failed getting the Guild that the bot should be
+   * serving.
+   */
+  private resolveMember(id: string): GuildMember | null {
+    const guild = this.client.guilds.cache.get(this.guild);
+
+    if (guild)
+      return guild.member(id);
+    else
+      throw new Error("Internal error occurred while fetching guild.");
   }
 }

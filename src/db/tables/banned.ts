@@ -41,7 +41,7 @@ export class BanTable {
    * Gets all the banned member ID's
    * @returns {string[]} An array of Discord ID's
    */
-  public getAll(): string[] {
+  public async getAll(): Promise<string[]> {
     const rows = this.db.prepare(
       `SELECT discord_id FROM ${this.tableName}`
     ).all();
@@ -58,7 +58,7 @@ export class BanTable {
    * This lifts a ban
    * @returns {boolean} If it was lifted successfully
    */
-  public pardon(id: string): boolean {
+  public async pardon(id: string): Promise<boolean> {
     const info = this.db.prepare(
       `DELETE FROM ${this.tableName} WHERE discord_id=?`
     ).run(id);

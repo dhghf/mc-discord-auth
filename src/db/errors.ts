@@ -26,6 +26,8 @@ export class AlreadyLinkedError extends Error {
 }
 
 export class AlreadyAuthCode extends Error {
-  constructor() {super("There is an auth code already for this Discord" +
-    " account running");}
+  constructor() {
+    super("There is an auth code already for this Discord" +
+      " account running");
+  }
 }

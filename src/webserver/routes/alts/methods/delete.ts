@@ -18,7 +18,7 @@ export async function delReq(req: Request, res: Response) {
   const playerName: string = req['player_name'];
   // @ts-ignore
   const webServer: WebServer = req['webserver'];
-  const isRemoved = webServer.db.alts.removeAnAlt(playerName);
+  const isRemoved = await webServer.db.alts.removeAnAlt(playerName);
   const response: isDeletedRes = {
     is_deleted: isRemoved
   };

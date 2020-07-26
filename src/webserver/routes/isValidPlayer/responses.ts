@@ -19,4 +19,9 @@ export type authCodeRes = {
   auth_code: string;
 }
 
-export type notValidReason = 'no_link' | 'no_role' | 'banned' | 'maintenance' | 'auth_code';
+export type notValidReason =
+  'no_link'
+  | 'no_role'
+  | 'banned'
+  | 'maintenance'
+  | 'auth_code';

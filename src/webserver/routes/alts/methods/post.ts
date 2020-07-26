@@ -6,10 +6,10 @@ import { NextFunction, Request, Response } from "express";
 import { noBodyError } from "../../../errors";
 import {
   altAlreadyAdded,
-  ownerType,
-  noOwner,
   invalidOwner,
+  noOwner,
   noPlayerName,
+  ownerType,
   playerNameType,
 } from "../errors";
 import { WebServer } from "../../../WebServer";
@@ -30,8 +30,8 @@ export async function postReq(req: Request, res: Response) {
   const webServer: WebServer = req['webserver'];
 
   try {
-  	const playerUUID: string = await mc.getUUID(playerName);
-    const isAdded = webServer.db.alts.addAnAlt(
+    const playerUUID: string = await mc.getUUID(playerName);
+    const isAdded = await webServer.db.alts.addAnAlt(
       owner,
       playerUUID,
       playerName
@@ -50,10 +50,10 @@ export async function postReq(req: Request, res: Response) {
         console.log(`Response for "${reqID}"\n`, invalidOwner);
         res.end();
       } else {
-      	res.status(401);
-	    res.send(altAlreadyAdded);
-	    console.log(`Response for "${reqID}"\n`, altAlreadyAdded);
-	    res.end();
+        res.status(401);
+        res.send(altAlreadyAdded);
+        console.log(`Response for "${reqID}"\n`, altAlreadyAdded);
+        res.end();
       }
     } else {
       res.status(401);

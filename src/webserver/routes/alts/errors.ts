@@ -26,8 +26,8 @@ export const playerNameType: WebServerError = {
 }
 
 export const invalidOwner: WebServerError = {
-	errcode: "INVALID_OWNER",
-	message: "The owner provided is not a valid player name"
+  errcode: "INVALID_OWNER",
+  message: "The owner provided is not a valid player name"
 }
 
 export const altAlreadyAdded: WebServerError = {

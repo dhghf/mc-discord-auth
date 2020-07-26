@@ -22,7 +22,7 @@ export class AltsTable {
    * This adds another alt account to the database
    * @returns {boolean} If it successfully was added
    */
-  public addAnAlt(owner: string, playerID: string, playerName: string): boolean {
+  public async addAnAlt(owner: string, playerID: string, playerName: string): Promise<boolean> {
     const info = this.db.prepare(
       `INSERT INTO ${this.tableName} (owner, alt_id, alt_name) VALUES (?, ?,?)`
     ).run(owner, playerID, playerName);
@@ -35,7 +35,7 @@ export class AltsTable {
    * @param {string} playerName Minecraft player to remove
    * @returns {boolean} If it successfully was removed
    */
-  public removeAnAlt(playerName: string): boolean {
+  public async removeAnAlt(playerName: string): Promise<boolean> {
     const info = this.db.prepare(
       `DELETE FROM ${this.tableName} WHERE alt_name=?`
     ).run(playerName);
@@ -48,7 +48,7 @@ export class AltsTable {
    * @param {string} playerID Minecraft player UUID
    * @returns {boolean}
    */
-  public isAnAlt(playerID: string): boolean {
+  public async isAnAlt(playerID: string): Promise<boolean> {
     const row = this.db.prepare(
       `SELECT alt_name FROM ${this.tableName} WHERE alt_id=?`
     ).get(playerID);
@@ -56,7 +56,7 @@ export class AltsTable {
     return row != undefined;
   }
 
-  public getAllAlts(): AltAcc[] {
+  public async getAllAlts(): Promise<AltAcc[]> {
     const rows = this.db.prepare(
       `SELECT * FROM ${this.tableName}`
     ).all();
@@ -70,10 +70,10 @@ export class AltsTable {
       });
     }
 
-    return result;1
+    return result;
   }
 
-  public getAlts(owner: string): AltAcc[] {
+  public async getAlts(owner: string): Promise<AltAcc[]> {
     const rows = this.db.prepare(
       `SELECT * FROM ${this.tableName} WHERE owner=?`
     ).all(owner);

@@ -4,7 +4,7 @@
  */
 import { Bot } from "./Bot";
 import { DBController } from "../db";
-import { Message, TextChannel } from "discord.js";
+import { Client, Message, TextChannel } from "discord.js";
 import * as mc from "../minecraft";
 
 
@@ -13,10 +13,12 @@ import * as mc from "../minecraft";
  */
 export class AdminCommands {
   private readonly bot: Bot;
+  private readonly client: Client;
   private readonly db: DBController;
 
-  constructor(bot: Bot, db: DBController) {
+  constructor(bot: Bot, client: Client, db: DBController) {
     this.bot = bot;
+    this.client = client;
     this.db = db;
   }
 
@@ -34,10 +36,12 @@ export class AdminCommands {
         "Admin Commands:\n" +
         ` - ${bot.prefix} unlink <Minecraft player name or @ discord member\n` +
         ` - ${bot.prefix} maintenance Toggles "maintenance mode"\n` +
+        ` - ${bot.prefix} lock Turn on maintenance mode\n` +
+        ` - ${bot.prefix} unlock Turn off maintenance mode\n` +
         ` - ${bot.prefix} ban <@discord member> Ban bot usage\n` +
         ` - ${bot.prefix} pardon <@discord member>\n` +
         ` - ${bot.prefix} status Display debug info\n` +
-        ` - ${bot.prefix} whois <@discord member> Displays debug info of someone else`
+        ` - ${bot.prefix} whois <mc name || @discord member> Displays debug info of someone else`
       );
     } else {
       await msg.reply("You're not an admin.");
@@ -68,7 +72,7 @@ export class AdminCommands {
       const target = msg.mentions.members.first();
 
       if (target) {
-        this.db.links.unlinkDiscordAcc(target.id);
+        await this.db.links.unlinkDiscordAcc(target.id);
         await msg.reply(
           `Unlinked ${target.user.username}'s claimed Minecraft account`);
         return;
@@ -80,7 +84,7 @@ export class AdminCommands {
     const playerName = args[2];
     try {
       const playerUUID = await mc.getUUID(playerName);
-      this.db.links.unlinkMcAcc(playerUUID);
+      await this.db.links.unlinkMcAcc(playerUUID);
       await msg.reply(`Unlinked "${playerName}"`);
     } catch (err) {
       await msg.reply("Please provide a valid Discord user or Minecraft" +
@@ -91,7 +95,7 @@ export class AdminCommands {
   /**
    * This toggles maintenance mode.
    */
-  public async maintenance(msg: Message) {
+  public async maintenance(msg: Message, toggled: boolean | null) {
     if (!msg.member)
       return;
 
@@ -102,7 +106,7 @@ export class AdminCommands {
       return;
     }
 
-    const isOn = this.bot.maintenanceMode();
+    const isOn = this.bot.setMaintenance(toggled);
 
     if (isOn)
       await msg.reply("Maintenance mode is now on.");
@@ -158,7 +162,7 @@ export class AdminCommands {
 
     if (target) {
       try {
-        this.db.bans.pardon(target.id);
+        await this.db.bans.pardon(target.id);
         await msg.reply(`Pardoned "${target.user.username}"`);
       } catch (err) {
         await msg.reply("This member is not banned.");
@@ -171,8 +175,10 @@ export class AdminCommands {
 
   /**
    * This is the whois command
+   * @param msg
+   * @param args = [".mc", "whois", "<@ID> or player name"]
    */
-  public async whois(msg: Message) {
+  public async whois(msg: Message, args: string[]) {
     if (!msg.mentions.members || !msg.member)
       return;
 
@@ -182,10 +188,26 @@ export class AdminCommands {
       if (member) {
         await this.bot.whoIs(member.user, msg.channel as TextChannel);
       } else {
-        await msg.reply("Please mention somebody");
+        const playerName = args[2];
+
+        if (playerName) {
+          const uuid = await mc.getUUID(playerName);
+          const discordID = await this.db.links.getDiscordID(uuid);
+
+          if (!discordID || !uuid) {
+            await msg.reply("That account isn't linked with anything.");
+            return
+          }
+          const user = await this.client.users.fetch(discordID);
+          await msg.reply(
+            `${user.username}#${user.discriminator} (<@${discordID}>)`
+          );
+        } else {
+          await msg.reply("Please mention somebody or provide a player name");
+        }
       }
     } catch (err) {
-      await msg.reply("That account isn't linked with anything.");
+
     }
   }
 }

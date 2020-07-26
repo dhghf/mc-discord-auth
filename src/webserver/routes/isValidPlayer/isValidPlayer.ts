@@ -3,10 +3,9 @@
  * @author Dylan Hackworth <dhpf@pm.me>
  */
 import * as express from 'express';
-import { isNotValid, authCodeRes, isValid } from "./responses";
-import { NextFunction, Request, Response } from "express";
-import { noBodyError } from "../../errors";
-import { noPlayerID, playerIDType } from "../../errors";
+import { NextFunction, Request, Response } from 'express';
+import { authCodeRes, isValid } from "./responses";
+import { noBodyError, noPlayerID, playerIDType } from "../../errors";
 import { WebServer } from "../../WebServer";
 
 
@@ -29,7 +28,7 @@ isValidPlayer.post('/isValidPlayer', async (req: Request, res: Response) => {
   const webserver: WebServer = req['webserver'];
 
   // Let's check if they're a valid alt account
-  const isAnAlt = webserver.db.alts.isAnAlt(playerUUID);
+  const isAnAlt = await webserver.db.alts.isAnAlt(playerUUID);
 
   res.status(200);
 
@@ -41,42 +40,25 @@ isValidPlayer.post('/isValidPlayer', async (req: Request, res: Response) => {
     return;
   }
 
-  try {
-    const linkedDiscord = webserver.db.links.getDiscordID(playerUUID);
+  const discordID = await webserver.db.links.getDiscordID(playerUUID);
 
-    if (linkedDiscord) {
-      // let's see if they're a verified member
-      const body = webserver.discord.isValidMember(linkedDiscord);
-      console.log(`Response for "${reqID}"\n`, body);
-      res.send(body);
-      res.end();
-    } else {
-      // let's see if this person has an auth code
-      const authCode = webserver.db.auth.getAuthCode(playerUUID);
+  if (discordID != undefined) {
+    const auth = webserver.discord.isValidMember(discordID);
 
-      if (authCode) {
-        const body: authCodeRes = {
-          reason: 'auth_code',
-          valid: false,
-          auth_code: authCode
-        };
-        res.send(body);
-        console.log(`Response for "${reqID}"\n`, body);
-        res.end();
-      } else {
-        const body: isNotValid = {
-          reason: 'no_link',
-          valid: false
-        };
-        console.log(`Response for "${reqID}"\n`, body);
-        res.send(body);
-        res.end();
-      }
-    }
-  } catch (err) {
-    res.status(500);
-    res.send();
-    console.log(`Error while handling request "${reqID}"\n`, err);
+    res.send(auth);
+    console.log(`Response for "${reqID}"\n`, auth);
+    res.end();
+    return;
+  } else {
+    const authCode = await webserver.db.auth.newAuthCode(playerUUID);
+    let response: authCodeRes = {
+      auth_code: authCode,
+      reason: "auth_code",
+      valid: false,
+    };
+
+    res.send(response);
+    console.log(`Response for "${reqID}"\n`, response);
     res.end();
   }
 });
